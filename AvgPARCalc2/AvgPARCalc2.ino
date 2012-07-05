@@ -9,7 +9,8 @@
  Sketch converts from the analog-to-digital raw signal to volts using code from Section 5.9 of the Arduino Cookbook (Michael Margolis, 2011).
  Adapts a moving average algorithm found in "Environmental Monitoring With Arduino".  https://github.com/ejgertz/EMWA/blob/master/chapter-2/NoiseMonitor
 
- This sketch has a particularly verbose stream of data going to the PC in order to confirm calcs and do general debugging, but sends only the avg PAR value to the data logger.
+ This sketch has a particularly verbose stream of data going to the PC in order to confirm calcs and do general debugging, but makes use of the software serial library to 
+ open up a separate serial string and send only the average PAR value to the data logger.
 
  Signal Conversion Notes:
 
@@ -48,15 +49,21 @@ Created by Matt Findley, July 1, 2012.  mcfindster@gmail.com.
                              // (digital pins 0 and 1) that are on the Uno.  Data transmitted on these pins also goes back to the PC over the USB cable.
                              // The SoftwareSerial library allows for a separate stream going only to the data logger.  
 
+#include <SPI.h>             // need this libary to communicate with the DS 3234 Real Time Clock (RTC). 
 
 // pin settings
-const int UTA_PIN = 0;        // use input pin A0 for the UTA output.
+const int UTA_PIN = 0;         // use input pin A0 for the UTA output.
 const int LOGGER_PIN = 5;      // pin used to transmit PAR level to the data logger.
-
+const int chipSelectPin = 8;   // digital pin 8 is used in the SPI communication protocol to let the RTC know who the boss is and when it needs to be communicating.
+                               // the Arduino also uses dig pins 11, 12, and 13 for master output/slave input, master input/slave output, and the serial clock respectively.  
+                               // see http://arduino.cc/en/Reference/SPI for more info.
+                               
 // variables for average PAR calculations. 
 const int NUMBER_OF_SAMPLES = 30;     // create integer constant representing the number of samples that make up the average.
-const int SAMPLE_FREQUENCY = 1000;    // create integer constant representing measurement frequency for making PAR measurments, in milliseconds.  
-float PAR_Samples[NUMBER_OF_SAMPLES]; // create variable that is an array of single precision floating-point numbers 
+const int SAMPLE_FREQUENCY = 30000;    // create integer constant representing measurement frequency for making PAR measurments, in milliseconds. 
+                                       // 30,000 milliseconds is sample collected every 30 seconds and a recorded average every 15 minutes (w/ sample size = 30).
+
+float PAR_Samples[NUMBER_OF_SAMPLES]; // create variable that is an array of single precision floating-point numbers.
                                       // (aka non-integer numbers with a fractional component) for storing PAR measurements.
 
 float avgPAR;                         // create variable (floating number) that holds the average of the measurements
@@ -83,6 +90,8 @@ void setup()
   Serial.println("count\told\tnew");  // send a string of text with the table header to the serial output stream.  
                                       // ... can be read from Serial Monitor in the Arduino.
                                       // the "\t" bit in the string is a tab character.
+
+  RTC_init();                        // needed to initialize the SPI communications protocol with the real time clock.
    
 }
 
@@ -110,7 +119,9 @@ void loop()
 
     avgPAR = sumOfSamples / NUMBER_OF_SAMPLES;         // calc avgPAR only at the end of a sample cycle.  ... not a moving average, but a simple avg.
 
-    logger.println(avgPAR);                            // send the average PAR value to the data logger.
+    logger.print(ReadTimeDate());                      // call the ReadTimeDate funct to read the time/date from the RTC and then assemble a string with the info.
+    logger.print("\t");                                // insert tab character
+    logger.println(avgPAR);                            // send the average PAR value to the data logger and start a new line.
 
     Serial.print("AvgPAR:\t\t");                       // also, send the average PAR value to the PC, starting with some text and two tabs to align with the last column.
     Serial.println(avgPAR);                            // Here's where the program puts the average PAR measurement to the PC output stream.
@@ -123,6 +134,8 @@ void loop()
 
 }                                                      // end bracket for the Arduino's main loop method. 
 
+//=====================================
+
 float acquirePAR(void)                                 // this is a custom function used to capture data from the LI-COR Sensor.
 {
   int val = analogRead(UTA_PIN);  // read the value from the sensor
@@ -131,3 +144,77 @@ float acquirePAR(void)                                 // this is a custom funct
   float PAR_Level = volts * LICOR_CAL_MULTIPLIER / UTA_GAIN_FACTOR;  // calculate PAR level umol s^-1 m^-2
   return PAR_Level;               // sends the measured PAR level back to the part of the main program that called this function.
 }                                 // end bracket for the acquirePAR function.
+
+//=====================================
+
+int RTC_init(){    // function is copied from DS3234 example code @ http://dlnmh9ip6v2uc.cloudfront.net/datasheets/BreakoutBoards/DS3234_Example_Code.pde
+	  pinMode(chipSelectPin,OUTPUT); // chip select
+	  // start the SPI library:
+	  SPI.begin();
+	  SPI.setBitOrder(MSBFIRST); 
+	  SPI.setDataMode(SPI_MODE3); // both mode 1 & 3 should work 
+                                      // despite sparkfun's above comment, I was only able to get it work in Mode 3, the this part of the code is slightly different.
+	  //set control register - not this needs to be done more than once provide the watch battery is plugged into the device, so commented out the next lines.
+//	  digitalWrite(chipSelectPin, LOW);  
+//	  SPI.transfer(0x8E);
+//	  SPI.transfer(0x60); //60= disable Osciallator and Battery SQ wave @1hz, temp compensation, Alarms disabled
+//	  digitalWrite(chipSelectPin, HIGH);
+	  delay(10);
+}
+
+//=====================================
+
+String ReadTimeDate(){ // function is copied from DS3234 example code @ http://dlnmh9ip6v2uc.cloudfront.net/datasheets/BreakoutBoards/DS3234_Example_Code.pde
+	String temp;
+	int TimeDate [7]; //second,minute,hour,null,day,month,year		
+	for(int i=0; i<=6;i++){
+		if(i==3)
+			i++;
+		digitalWrite(chipSelectPin, LOW);
+		SPI.transfer(i+0x00); 
+		unsigned int n = SPI.transfer(0x00);        
+		digitalWrite(chipSelectPin, HIGH);
+		int a=n & B00001111;    
+		if(i==2){	
+			int b=(n & B00110000)>>4; //24 hour mode
+			if(b==B00000010)
+				b=20;        
+			else if(b==B00000001)
+				b=10;
+			TimeDate[i]=a+b;
+		}
+		else if(i==4){
+			int b=(n & B00110000)>>4;
+			TimeDate[i]=a+b*10;
+		}
+		else if(i==5){
+			int b=(n & B00010000)>>4;
+			TimeDate[i]=a+b*10;
+		}
+		else if(i==6){
+			int b=(n & B11110000)>>4;
+			TimeDate[i]=a+b*10;
+		}
+		else{	
+			int b=(n & B01110000)>>4;
+			TimeDate[i]=a+b*10;	
+			}
+	}
+        // assemble the time/date string
+	temp.concat(TimeDate[5]);  // month goes first according to US convention.
+	temp.concat("/") ;         // slashes separate the month/day/year
+	temp.concat(TimeDate[4]);  // now day of month.
+	temp.concat("/") ;
+	temp.concat(TimeDate[6]);  // now year.
+	temp.concat("     ") ;     // now space to separate the date from the time.
+	temp.concat(TimeDate[2]);  // now hour.
+	temp.concat(":") ;         // colons separate the hours:minutes:seconds
+        if(TimeDate[1] < 10)
+	  temp.concat("0");        // puts a leading zero in front of minutes between 0 and 9.
+	temp.concat(TimeDate[1]);
+	temp.concat(":") ;
+        if(TimeDate[0] < 10)
+	  temp.concat("0");        // puts a leading zero in front of seconds between 0 and 9.
+	temp.concat(TimeDate[0]);
+  return(temp);
+}
