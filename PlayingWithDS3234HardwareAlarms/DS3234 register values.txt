@@ -1,0 +1,18 @@
+DS3234 register settings before setup. 7/7/2012 11 am:
+
+alarm 2 minutes: 0001 0101  - set t0 15 minutes.
+
+alarm 2 hours: 1000 0000  - mask bit set, otherwise everything clear.
+alarm 2 day/date: 1000 0000 - same.
+control register: 0000 0110 - oscillator keeps going when on battery power, but otherwise all sorts of stuff disabled.
+                              bit 2 set to 1 tells the device to use the Square wave/interrupt pin as an interrupt.
+                              bit 1 set to 1 tells the device to enable Alarm 2 interrupt.
+
+
+
+
+
+control/status register: 0000 0010 -  says all sorts of stuff is disabled.  The flag for Alarm2 has been set,
+                                      so will need to clear it.
+
+MF
