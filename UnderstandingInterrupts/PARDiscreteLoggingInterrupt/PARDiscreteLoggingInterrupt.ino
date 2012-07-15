@@ -40,12 +40,12 @@ Created by Matt Findley, July 1, 2012.  mcfindster@gmail.com.
 Change log.
 
 7/7/2012 - revised to record discrete data instead of averaging.  There seems to plenty of storage space on the SD card.
-7/11/2012 - changed switches on the UTA to make the gain factor 0.3 instead of 0.4.  This will keep PAR from going off scale on the ADC during peak sunlight.
+7/11/2012 - changed switches on the UTA to make the gain factor 0.3 instead of 0.4.  This will keep from going off scale on the ADC during peak sunlight.
 */
 
 #include <SoftwareSerial.h>  // this used to be the NewSoftSerial library that I used to use for early forays into creating data logging applications.
                              // it now ships with the Arduino 1.0 IDE and has a new name.
-                             // Basically, it allows the programmer to set up a serial data stream that is separate from the hardware based Tx/Rx pi`  ns
+                             // Basically, it allows the programmer to set up a serial data stream that is separate from the hardware based Tx/Rx pins
                              // (digital pins 0 and 1) that are on the Uno and are transmitted to the PC over the USB cable.
                              // The SoftwareSerial library allows for a separate stream going only to the data logger.  
 
@@ -57,12 +57,19 @@ const int LOGGER_PIN = 5;      // pin used to transmit PAR level to the data log
 const int CHIP_SELECT_PIN = 8;   // digital pin 8 is used in the SPI communication protocol to let the RTC know who the boss is and when it needs to be communicating.
                                // the Arduino also uses dig pins 11, 12, and 13 for master output/slave input, master input/slave output, and the serial clock respectively.  
                                // see http://arduino.cc/en/Reference/SPI for more info.
+
+const int INTERRUPT_PIN = 3;   // digital pin 3 used to catch the interrupt flag coming off of the RTC                           
+                               //  confusing, but this is also known as interrupt 1  
                                
 // variables for sampling rate. 
 const int SAMPLE_FREQUENCY = 30000;    // create integer constant representing measurement frequency for making PAR measurments, in milliseconds. 
                                        // 30,000 milliseconds is sample collected every 30 seconds.
+
 float measuredPAR;                    // create variable (floating number) that holds the PAR measurement.
-String measurementTimeDate;                      // string to hold the date and time for the measurement.
+String measurementTimeDate;           // string to hold the date and time for the measurement.
+
+volatile boolean interruptFlag = false;
+
 // constants for converting signal from raw data to PAR level
 const float REFERENCE_VOLTS = 5.0; // create variable (floating number) for the max voltage on the Arduino Uno's analog-to-digital (ADC) converter.
 // see intro to program for explanation for the following "magic numbers":
@@ -81,25 +88,27 @@ void setup()
 
   Serial.println("Date\tTime\t PAR");
   logger.println("Date\tTime\t PAR");
+  
+  attachInterrupt(1, grabData, FALLING);
 }
 
 void loop()
 {
-  measurementTimeDate = ReadTimeDate();    // calls function that reads the time and date off the real time clock.
-  measuredPAR = acquirePAR();              // calls function that reads voltage on Analog pin 0 and converts it to PAR level.
-
-  Serial.print(measurementTimeDate);
-  Serial.print("\t");
-  Serial.println(measuredPAR);
+  while(interruptFlag == true) {
+    Serial.println("Do Something!);
+    interruptFlag = false;
+  }
   
-  logger.print(measurementTimeDate);
-  logger.print("\t");
-  logger.println(measuredPAR);
-  
-  delay(SAMPLE_FREQUENCY);                             // this part of the code is where the Arduino just sits and waits for time to elapse before 
-                                                       // collecting the next PAR level measurement.
-
 }                                                      // end bracket for the Arduino's main loop method. 
+
+
+//=====================================
+
+void grabData(){
+
+  interruptFlag = true;
+  
+}
 
 //=====================================
 
