@@ -1,4 +1,6 @@
 PARduino
 ========
 
-Photosyntetically Active Radiation (PAR) logging using Arduino.
+Photosynthetically Active Radiation (PAR) logging using Arduino.
+
+PAR is a parameter often measured during environmental monitoring or research.
