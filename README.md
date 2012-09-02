@@ -1,4 +1,4 @@
-LI-COR-Sensor-Logger
-====================
+PARduino
+========
 
-Arduino Logging Application for LI-COR light level sensor data.
+Photosyntetically Active Radiation (PAR) logging using Arduino.
