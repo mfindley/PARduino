@@ -7,7 +7,7 @@ It was designed for the Barnard Ecohydology Lab at the University of Colorado, B
 The program is designed for the following components:
  - an Arduino Pro Mini (8 mHz / 3.3 volts)  https://www.sparkfun.com/products/11114?
  - DeadOn Real Time Clock - DS3234 Breakout Board https://www.sparkfun.com/products/10160
- - micro SD card breakout board https://www.sparkfun.com/products/544?
+ - microSD card breakout board https://www.sparkfun.com/products/544?
  - EME Systems Universal Transconductance Amplifier (UTA) w/ BNC connector http://www.emesystems.com/uta_dat.htm  http://www.emesystems.com/pdfs/UTA_ver2A_120407.pdf 
  - LI-COR Quantum PAR sensor http://www.licor.com/env/pdf/light/190.pdf (Li-190SA version with a BNC connector)
 
@@ -25,6 +25,10 @@ Program notes:
    http://www.sparkfun.com/datasheets/BreakoutBoards/DS3234.pdf, suggests that this keeps registers from updating during a read cycle. 
 
   Initalizing of the SD card and writing to the file is based on an example, ReadWriteSdFat, at http://code.google.com/p/sdfatlib/
+
+Dependencies: 
+  Except for the SdFat library,  all of the software libaries used by this code are included in the Arduino 1.0.1 IDE.
+  This program uses the July 2012 SdFat library at http://code.google.com/p/sdfatlib/
 
 Signal Conversion Notes:
 
@@ -60,31 +64,24 @@ Circuit Notes:
   D11 o-----o master out slave in (MOSI) line for the RTC and the SD card.  used for SPI communication.
   D12 o-----o master in slave out (MISO) line for the RTC and the SD card.  used for SPI communication.
   D13 o-----o clock for SPI communication. connected to CLK on the RTC and the SD card.
- 
-License
-    
-    PARduino measures and logs photosynthetically active radiation (PAR)
 
-    Copyright (C) 2012  Matt Findley
+  For a printed circuit board connecting all the components, see:  https://batchpcb.com/pcbs/106407
+  BatchPCB has been sold, so you can't order a board anymore.  I intend to make the design files available soon.
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+License:
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+  This work is licensed under the Creative Commons Attribution-ShareAlike 3.0 United States License. 
+  To view a copy of this license, visit http://creativecommons.org/licenses/by-sa/3.0/us/ or 
+  send a letter to Creative Commons, 444 Castro Street, Suite 900, Mountain View, California, 94041, USA.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/gpl-3.0.html>. 
- 
-Created by Matt Findley, Boulder, Colorado, Sep 1, 2012.  matthewfindley@hotmail.com.
+  Created by Matt Findley, Boulder, Colorado, Sep 1, 2012.  matthewfindley@hotmail.com.
 
 Change log:  
 
 9/1/2012 - added annotation.
+6/28/2013 - changed license for arduino code to Creative Commons Attribution-ShareAlike.
+          - documented library dependencies.
+          - provided reference to PCB on BatchPCB.
 
 */
 
