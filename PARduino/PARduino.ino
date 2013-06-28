@@ -65,8 +65,8 @@ Circuit Notes:
   D12 o-----o master in slave out (MISO) line for the RTC and the SD card.  used for SPI communication.
   D13 o-----o clock for SPI communication. connected to CLK on the RTC and the SD card.
 
-  For a printed circuit board connecting all the components, see:  https://batchpcb.com/pcbs/106407
-  BatchPCB has been sold, so you can't order a board anymore.  I intend to make the design files available soon.
+  Design documents for a printed circuit board (PCB) connecting all these components is available at the
+  PARduino github repository.
 
 License:
 
