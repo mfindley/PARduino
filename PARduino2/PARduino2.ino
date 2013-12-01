@@ -85,6 +85,7 @@ Change log:
 7/20/2013 - provided more text info written in the header of the data file during initialization.
           - now includes PAR sensor serial number, calibration and gail factors (hard coded in - it does read the variables)
           - time zone (hard coded as mountain standard time, but the code has no way to check this.)
+10/20/2013- use card detect switch to decide whether to initiate a write to the card or not.
 */
 
 #include <SPI.h>  // used to communicate with the RTC and the SD card peripherals.
@@ -119,33 +120,52 @@ String measurementTimeDate;           // string to hold the date and time for th
 
 
 void setup(void){
-//  Serial.begin(9600);
+  Serial.begin(9600);
   pinMode(RTC_CS, OUTPUT);  // set the chip select pin to out before anything else!!!
   pinMode(SD_CS, OUTPUT);  // set the chip select pin to out before anything else!!!
+  pinMode(5, INPUT_PULLUP); // set card detect pin as digital input with interal pull up resistor
   initializeRTC();   // set alarm2 and enable interrupt on the DS3234
   attachInterrupt(RTC_INTERRUPT, RealTimeClockInterruptServiceRoutine, FALLING);  // sets up interrupt0 to trigger whenever the RTC alarm falls from high to low.
 
-// write header to SD card  
-  if (!sd.begin(SD_CS, SPI_HALF_SPEED)) sd.initErrorHalt();
+  int cardPresent = digitalRead(5);
 
-  // open the file for write at end like the Native SD library
-  if (!myFile.open("data.txt", O_RDWR | O_CREAT | O_AT_END)) {
-    sd.errorHalt("opening data.txt for write failed");
+  if (cardPresent == LOW) // if an SDCard is detected in the socket.
+  {
+    Serial.println("Card in Socket");
+
+    // write header to SD card  
+    if (!sd.begin(SD_CS, SPI_HALF_SPEED)) sd.initErrorHalt();
+
+    // open the file for write at end like the Native SD library
+    if (!myFile.open("data.txt", O_RDWR | O_CREAT | O_AT_END)) {
+      sd.errorHalt("opening data.txt for write failed");
+    }
+    // if the file opened okay, write to it:
+    Serial.print("#Header Text... Initialized:  ");
+    Serial.println(readTime());
+
+    myFile.print("#Header Text... Initialized:  ");
+    myFile.println(readTime());
+
+    myFile.println("#PAR Sensor Model: LI190  Serial Number: Q47952");
+    myFile.println("#Calibration Constant: 143.47 micromol s-1 m-2 / microamp");
+    myFile.println("#Amplifier Gain: 0.2 Volt / microamp");
+    myFile.println("#Time Zone:  Mountain Standard Time");
+
+    Serial.println("#PAR Sensor Model: LI190  Serial Number: Q47952");
+    Serial.println("#Calibration Constant: 143.47 micromol s-1 m-2 / microamp");
+    Serial.println("#Amplifier Gain: 0.2 Volt / microamp");
+    Serial.println("#Time Zone:  Mountain Standard Time");
+
+
+    // close the file:
+    myFile.close();
+    Serial.println("done.");
   }
-  // if the file opened okay, write to it:
-//  Serial.print("#Header Text... Initialized:  ");
-//  Serial.println(readTime());
-  myFile.print("#Header Text... Initialized:  ");
-  myFile.println(readTime());
-
-  myFile.println("#PAR Sensor Model: LI190  Serial Number: Q47952");
-  myFile.println("#Calibration Constant: 143.47 micromol s-1 m-2 / microamp");
-  myFile.println("#Amplifier Gain: 0.2 Volt / microamp");
-  myFile.println("#Time Zone:  Mountain Standard Time");
-
-  // close the file:
-  myFile.close();
-//  Serial.println("done.");
+  else
+  {
+    Serial.println("Card not in Socket");
+  }
 }
 
 void loop(void){
@@ -158,21 +178,24 @@ void loop(void){
 //    Serial.print("\t");
 //    Serial.println(measuredPAR);
   
-  if (!sd.begin(SD_CS, SPI_HALF_SPEED)) sd.initErrorHalt();
 
-  // open the file for write at end like the Native SD library
-  if (!myFile.open("data.txt", O_RDWR | O_CREAT | O_AT_END)) {
-    sd.errorHalt("opening data.txt for write failed");
+  if (digitalRead(5) == LOW) // if an SDCard is detected in the socket.
+  {
+    if (!sd.begin(SD_CS, SPI_HALF_SPEED)) sd.initErrorHalt();
+
+    // open the file for write at end like the Native SD library
+    if (!myFile.open("data.txt", O_RDWR | O_CREAT | O_AT_END)) {
+      sd.errorHalt("opening data.txt for write failed");
+    }
+    // if the file opened okay, write to it:
+    //  Serial.println(readTime());
+    myFile.print(readTime());
+    myFile.print("\t");
+    myFile.println(measuredPAR);
+    // close the file:
+    myFile.close();
+    //  Serial.println("done.");
   }
-  // if the file opened okay, write to it:
-//  Serial.println(readTime());
-  myFile.print(readTime());
-  myFile.print("\t");
-  myFile.println(measuredPAR);
-  // close the file:
-  myFile.close();
-//  Serial.println("done.");
-
     clearInterruptFlag();
   }
   
