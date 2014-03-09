@@ -1,3 +1,4 @@
+
 /* 
 
 PARduino measures and logs photosynthetically active radiation (PAR). 
@@ -5,13 +6,13 @@ PARduino measures and logs photosynthetically active radiation (PAR).
 It was designed for the Barnard Ecohydology Lab at the University of Colorado, Boulder  (http://instaar.colorado.edu/research/labs-groups/ecohydrology-laboratory/).
 
 The program is designed for the following components:
- - an Arduino Pro Mini (8 mHz / 3.3 volts)  https://www.sparkfun.com/products/11114?
+ - an Arduino Pro Mini (8 mHz / 3.3 volts built around the ATmega328)  https://www.sparkfun.com/products/11114?
  - DeadOn Real Time Clock - DS3234 Breakout Board https://www.sparkfun.com/products/10160
  - microSD card breakout board https://www.sparkfun.com/products/544?
  - EME Systems Universal Transconductance Amplifier (UTA) w/ BNC connector http://www.emesystems.com/uta_dat.htm  http://www.emesystems.com/pdfs/UTA_ver2A_120407.pdf 
  - LI-COR Quantum PAR sensor http://www.licor.com/env/pdf/light/190.pdf (Li-190SA version with a BNC connector)
 
-Created using version 1.0.1 of the Arduino IDE.
+Created using version 1.0.5 of the Arduino IDE.
 
 Program notes:
 
@@ -25,17 +26,21 @@ Program notes:
    http://www.sparkfun.com/datasheets/BreakoutBoards/DS3234.pdf, suggests that this keeps registers from updating during a read cycle. 
 
   Initalizing of the SD card and writing to the file is based on an example, ReadWriteSdFat, at http://code.google.com/p/sdfatlib/
+  
+  The program uses example code from  http://www.arduino.cc/en/Tutorial/InputPullupSerial to use the card detect pin on the SD card breakout board 
+  to detect the presense/absense of an SD flash memory card in the socket. 
+
 
 Dependencies: 
-  Except for the SdFat library,  all of the software libaries used by this code are included in the Arduino 1.0.1 IDE.
-  This program uses the July 2012 SdFat library at http://code.google.com/p/sdfatlib/
+  Except for the SdFat library,  all of the other software libaries used by this code are included in the Arduino 1.0.5 IDE.
+  This program uses the 2013 06 29 SdFat library at http://code.google.com/p/sdfatlib/
 
 Signal Conversion Notes:
 
  Program is designed specifically for a new LI-COR Quantum sensor purchased by the Barnard Ecohydrology Lab.  Serial number "Q 47952".
  The cert. of calibration (Jun 19, 2012) has a calibration constant of 6.97 microamps per 1000 umol s^-1 m^-2.
  This equates to 143.47 umol s^-1 m^-2 / microamp.
- The UTA was set to have a "gain factor" of 0.2 V / uA when the signal is amplified and converted from current to voltage.
+ The UTA was configured to have a "gain factor" of 0.2 V / uA when the signal is amplified and converted from current to voltage.
 
  The EME data sheet says that, to convert the signal to PAR level, you need to use the formula:
    
@@ -52,13 +57,13 @@ Circuit Notes:
 
   pin map:
   
-  RAW o-----o 9V wall wart barrel jack, red wire for UTA power.
+  RAW o-----o 9V wall wart barrel jack (or 6 volt sealed lead acid battery), red wire for UTA power.
   GND o-----o 9V wall wart barrel jack, black ground wire for UTA power, GND wires for RTC and SD card.
   VCC o-----o VCC to SD card and the RTC.
   
   A2  o-----o white signal wire from the UTA
   D2  o-----o interrupt (INT) pin on RTC break out board (BoB)
-  D5  o-----o card detect (CD) on SD BoB (... not really used in this sketch)
+  D5  o-----o card detect (CD) on SD BoB
   D8  o-----o chip select (CS) on RTC.  used for SPI communication.
   D10 o-----o chip select (CS) for the SD card.  used for SPI communication.
   D11 o-----o master out slave in (MOSI) line for the RTC and the SD card.  used for SPI communication.
@@ -78,115 +83,150 @@ License:
 
 Change log:  
 
-9/1/2012 - added annotation.
-6/28/2013 - changed license for arduino code to Creative Commons Attribution-ShareAlike.
-          - documented library dependencies.
-          - provided reference to PCB in the PARduino GitHub repository.
-7/20/2013 - provided more text info written in the header of the data file during initialization.
-          - now includes PAR sensor serial number, calibration and gail factors (hard coded in - it does read the variables)
-          - time zone (hard coded as mountain standard time, but the code has no way to check this.)
+9/1/2012   - added annotation.
+6/28/2013  - point license for arduino code to Creative Commons Attribution-ShareAlike.
+           - documented library dependencies.
+           - provided reference to PCB in the PARduino GitHub repository.
+7/20/2013  - provided more text info written in the header of the data file during initialization.
+           - now includes PAR sensor serial number, calibration and gain factors (hard coded in - it does read the variables)
+           - time zone (hard coded as mountain standard time, but the code has no way to check this.)
+10/22/2013 - Migrated to 1.0.5 IDE.  Added logic to take advantage of the card detect pin on the flash card socket.
 */
 
-#include <SPI.h>  // used to communicate with the RTC and the SD card peripherals.
-#include <SdFat.h>  // library for working with files on the SD card.
+// these libraries are used to shuffle data between microcontroller and the clock and memory card peripherals.
+#include <SdFat.h>  // downloaded sdfatlib20130629.zip file from google code page.
+#include <SPI.h>    // serial peripheral interface.
 // these libraries are used to move in and out of low power mode:
 #include <avr/interrupt.h>  
 #include <avr/power.h>
 #include <avr/sleep.h>
 #include <avr/io.h>
 
-SdFat sd;  // used by the SDFat library to create an C++ object representing the SD card
-SdFile myFile;  // used by the SDFat library to create an C++ object representing the data file
-
+const int cardDetectPin = 5;
 const int RTC_CS=8; //chip select pin for real time clock
 const int SD_CS=10; //chip select pin for SD card
 const int UTA_PIN=A2; // reads the LiCOR through the UTA using analog pin 2
 const int RTC_INTERRUPT=0;   // catching the RTC alarm using Interrupt0 on the microcontroller.                           
-                             // Interrupt0 maps to digital pin 2 on the Arduino and is variously identifed by pin number or by interrupt number, which is a bit confusing.
+                             // Interrupt0 maps to digital pin 2 on the Arduino and is variously identifed by pin number 
+                             // or by interrupt number, which is a bit confusing.
 
 volatile int interruptFlag = 0;    // declare a variable to act as an interrupt flag.  
-                               // set up as volatile variable because we work with it in the interrupt service routine.
+                                   // set up as volatile variable because we work with it in the interrupt service routine.
 
 // constants for converting the raw signal to a PAR value
 const float REFERENCE_VOLTS = 3.3; // create variable (floating number) for the max voltage on the Arduino's analog-to-digital (ADC) converter.
 // see intro to program for explanation for the following "magic numbers":
 const float LICOR_CAL_MULTIPLIER = 143.47;
 const float UTA_GAIN_FACTOR = 0.20;
-   
+
 // variables for sampling data: 
-float measuredPAR;                    // create variable (floating number) that holds the PAR measurement.
-String measurementTimeDate;           // string to hold the date and time for the measurement.
+float measuredPAR;             // create variable (floating number) that holds the PAR measurement.
+String measurementTimeDate;    // string to hold the date and time for the measurement.
+int cardPresent;
+SdFat sd;  // used by the SDFat library to create an C++ object representing the SD card
+SdFile myFile;  // used by the SDFat library to create an C++ object representing the data file
 
-
-void setup(void){
+void setup(void)
+{
+  //start serial connection
 //  Serial.begin(9600);
   pinMode(RTC_CS, OUTPUT);  // set the chip select pin to out before anything else!!!
   pinMode(SD_CS, OUTPUT);  // set the chip select pin to out before anything else!!!
+  pinMode(cardDetectPin, INPUT_PULLUP);   //set pin2 as an input w/ internal pull-up resistor
+
   initializeRTC();   // set alarm2 and enable interrupt on the DS3234
   attachInterrupt(RTC_INTERRUPT, RealTimeClockInterruptServiceRoutine, FALLING);  // sets up interrupt0 to trigger whenever the RTC alarm falls from high to low.
 
-// write header to SD card  
+  cardPresent = digitalRead(cardDetectPin);
+  while (cardPresent == LOW)   
+  {
+    // hang in this loop until the SD card is detected in the socket.
+//    Serial.println("Card Not Present");
+    cardPresent = digitalRead(cardDetectPin);
+    delay(500);
+  }
+//  Serial.println("Card Present.  Leaving card detect loop");
+
+//  Serial.println("Initializing SD card in setup block...");
+  // most of the following code is from the ReadWriteSDFat example code
+  // that comes with the SDFat library.
+  
   if (!sd.begin(SD_CS, SPI_HALF_SPEED)) sd.initErrorHalt();
 
   // open the file for write at end like the Native SD library
-  if (!myFile.open("data.txt", O_RDWR | O_CREAT | O_AT_END)) {
-    sd.errorHalt("opening data.txt for write failed");
+  if (!myFile.open("PARData.txt", O_RDWR | O_CREAT | O_AT_END)) {
+    sd.errorHalt("opening PARData.txt for write failed");
+//    Serial.println("opening PARData.txt for write failed");
   }
   // if the file opened okay, write to it:
-//  Serial.print("#Header Text... Initialized:  ");
-//  Serial.println(readTime());
+//  Serial.print("Writing to PARData.txt...");
   myFile.print("#Header Text... Initialized:  ");
   myFile.println(readTime());
-
   myFile.println("#PAR Sensor Model: LI190  Serial Number: Q47952");
   myFile.println("#Calibration Constant: 143.47 micromol s-1 m-2 / microamp");
   myFile.println("#Amplifier Gain: 0.2 Volt / microamp");
   myFile.println("#Time Zone:  Mountain Standard Time");
-
   // close the file:
   myFile.close();
 //  Serial.println("done.");
+
+  // re-open the file for reading:
+//  if (!myFile.open("PARData.txt", O_READ)) {
+//    sd.errorHalt("opening PARData.txt for read failed");
+//    Serial.println("opening PARData.txt for read failed");
+//  }
+//  Serial.println("PARData.txt:");
+  // read from the file until there's nothing else in it:
+//  int data;
+//  while ((data = myFile.read()) >= 0) Serial.write(data);
+  // close the file:
+//  myFile.close();
+//  Serial.println("card setup.");
 }
 
-void loop(void){
+void loop()
+{
   sleepNow();
-  if(interruptFlag == 1){
-    measurementTimeDate = readTime();    // calls function that reads the time and date off the real time clock.
-    measuredPAR = acquirePAR();          // calls function that reads voltage on Analog pin 0 and converts it to PAR level.
+  if(interruptFlag == 1)
+  {
+    cardPresent = digitalRead(cardDetectPin);
+    if (cardPresent == HIGH) 
+    {
+//      Serial.println("Card Present");
+      measurementTimeDate = readTime();    // calls function that reads the time and date off the real time clock.
+//      Serial.println("Time has been read");
+      measuredPAR = acquirePAR();          // calls function that reads voltage on Analog pin 0 and converts it to PAR level.
+//      Serial.println("PAR has been read");
 
-//    Serial.print(measurementTimeDate);
-//    Serial.print("\t");
-//    Serial.println(measuredPAR);
-  
-  if (!sd.begin(SD_CS, SPI_HALF_SPEED)) sd.initErrorHalt();
-
-  // open the file for write at end like the Native SD library
-  if (!myFile.open("data.txt", O_RDWR | O_CREAT | O_AT_END)) {
-    sd.errorHalt("opening data.txt for write failed");
+      if (!myFile.open("PARData.txt", O_RDWR | O_CREAT | O_AT_END)) {
+        sd.errorHalt("opening test.txt for write failed");
+      }
+      // if the file opened okay, write to it:
+//      Serial.print("Writing to PARData.txt...");
+      myFile.print(measurementTimeDate);
+      myFile.print("\t");
+      myFile.println(measuredPAR);
+      myFile.close();
+//      Serial.print(measurementTimeDate);
+//      Serial.print("\t");
+//      Serial.println(measuredPAR);
+//      Serial.println("done writing in loop.");
+    } 
+    else 
+    {
+//      Serial.println("Card Not Present");
+    }
+  clearInterruptFlag();
   }
-  // if the file opened okay, write to it:
-//  Serial.println(readTime());
-  myFile.print(readTime());
-  myFile.print("\t");
-  myFile.println(measuredPAR);
-  // close the file:
-  myFile.close();
-//  Serial.println("done.");
-
-    clearInterruptFlag();
-  }
-  
 }
 
-void initializeRTC() {
+void initializeRTC()
+{
   SPI.begin();  // start command for SPI.  used in Sparkfun's example code
   SPI.setBitOrder(MSBFIRST);  // configuration command used to communicate with the clock.
-  SPI.setDataMode(SPI_MODE3); // both mode 1 & 3 should work 
-                              // despite sparkfun's above comment, I was only able to get it work in Mode 3, the this part of the code is slightly different.
-
+  SPI.setDataMode(SPI_MODE3); 
  //configure the Alarm 2 control registers on the RTC to fire an interrupt on 00 seconds of every minute - see table 2 of DS3234 datasheet.
   digitalWrite(RTC_CS, LOW);      // pull the chip select pin connected to the RTC low, so that the RTC knows that the Arduino wants to communicate with it.
-
 
   SPI.transfer(0x8B);         // send a command which contains the register address that we want to write to.  
                               // 0x8B is the first register in the series of alarm2 programming registers
@@ -210,11 +250,10 @@ void initializeRTC() {
  
   delay(10);
   SPI.end();  // added for symmetry.
-
 }
 
-String readTime(){
-  // read time:
+String readTime()
+{
   SPI.begin();
   SPI.setBitOrder(MSBFIRST); 
   SPI.setDataMode(SPI_MODE3);
@@ -302,6 +341,15 @@ String readTime(){
   return(temp);
 }
 
+float acquirePAR(void)  // this function captures data from the LI-COR Sensor.
+{
+  int val = analogRead(UTA_PIN);  // read the value from the sensor
+                                  // should be int between 0 and 1023 (2^10 is a 10 bit ADC)
+  float volts = val * REFERENCE_VOLTS / 1023;  // order of operations is important here, otherwise integer division takes place.
+  float PAR_Level = volts * LICOR_CAL_MULTIPLIER / UTA_GAIN_FACTOR;  // calculate PAR level umol s^-1 m^-2
+  return PAR_Level;               // sends the measured PAR level back to the part of the main program that called this function.
+}                                 // end bracket for the acquirePAR function.
+
 void clearInterruptFlag(){
   SPI.begin();
   SPI.setBitOrder(MSBFIRST); 
@@ -338,14 +386,4 @@ void sleepNow(void)
     // Upon waking up, sketch continues from this point.
     sleep_disable();
 }
-
-float acquirePAR(void)  // thisfunction captures data from the LI-COR Sensor.
-{
-  int val = analogRead(UTA_PIN);  // read the value from the sensor
-                                  // should be int between 0 and 1023 (2^10 is a 10 bit ADC)
-  float volts = val * REFERENCE_VOLTS / 1023;  // order of operations is important here, otherwise integer division takes place.
-  float PAR_Level = volts * LICOR_CAL_MULTIPLIER / UTA_GAIN_FACTOR;  // calculate PAR level umol s^-1 m^-2
-  return PAR_Level;               // sends the measured PAR level back to the part of the main program that called this function.
-}                                 // end bracket for the acquirePAR function.
-
 
