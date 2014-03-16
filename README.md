@@ -1,5 +1,8 @@
 PARduino
 ========
+
+![PARduino](/pics/PARduinoCloseUp.JPG "Image of PARduino Hardware")
+
 PARduino measures and logs photosynthetically active radiation (PAR). 
 It was designed for the Barnard Ecohydology Lab at the University of Colorado, Boulder  (http://instaar.colorado.edu/research/labs-groups/ecohydrology-laboratory/).
 
@@ -21,12 +24,15 @@ Making PARduino
 - Modify the software for the gainfactor of the EME amplifier and the calibration factor of the Li-COR sensor (each Li-COR sensor has a different calibration factor).  This entails changing these values at the beginning of the PARduino source code.
 - Set the time and date on the real time clock.
 - Format the microSD flash card.
-- Load the software onto the microcontroller using FDTI USB to Serial breakout board.
+- Load the software onto the microcontroller using FDTI USB-to-Serial breakout board.
+
+![alt text](/pics/PCBCloseUp.jpg "Close up of the PCB with components") 
+
 
 Using PARduino
 --------------
 
-[need to discuss how to initiate data collection].
+There's really no on/off switch at this stage of development.  The device starts up as soon as it is powered.  Hitting the reset button on the Arduino Pro Mini will restart the firmware and append another block of initiallization text to the data file.  Harmless, but results in a cluttered data file.
 
 Design Rationale
 ----------------
