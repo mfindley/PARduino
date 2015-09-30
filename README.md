@@ -8,7 +8,7 @@ It was designed for the Barnard Ecohydology Lab at the University of Colorado, B
 
 Introduction
 ------------
-PAR is measured during environmental monitoring and research.  We developed PARduino because it has the potential to collect environmental data in research plots at a lower cost than what we currently use for data aquisition.
+PAR is measured during environmental monitoring and research.  We developed PARduino because it has the potential to collect environmental data in research plots at a lower cost than what we currently use for data acquisition.
 
 Design Files
 ------------
